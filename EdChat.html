@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>EdChat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef1f8;--panel:#fff;--side:#161c33;--side2:#232b4b;--ink:#1b2238;--mute:#6b7494;--line:#e0e4f2;--acc:#4f5bd5;--them:#fff;--chip:#eef0fb;--shadow:0 6px 24px rgba(27,34,56,.12)}
+:root[data-theme=dark]{--bg:#0e1325;--panel:#161c33;--side:#090d1b;--side2:#171e3d;--ink:#e8ebf7;--mute:#8d96b8;--line:#252d50;--acc:#6b77f0;--them:#202849;--chip:#222a4c;--shadow:0 6px 24px rgba(0,0,0,.4)}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{font:16px/1.5 "Bricolage Grotesque",system-ui,sans-serif;background:var(--bg);color:var(--ink);display:flex;overflow:hidden}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+aside{width:276px;background:var(--side);color:#e8ebf7;display:flex;flex-direction:column;padding:22px 14px 14px;gap:16px;flex-shrink:0;transition:transform .25s}
+.brand{display:flex;align-items:center;gap:11px;font-size:25px;font-weight:700;padding:0 8px;letter-spacing:-.3px}
+.brand svg{width:32px;height:32px}
+aside h2{font-size:14px;font-weight:500;color:#8f98bd;margin:0 8px 6px}
+#rooms{display:flex;flex-direction:column;gap:2px;overflow:auto;flex:1}
+.room{display:flex;justify-content:space-between;align-items:center;background:none;border:0;text-align:left;padding:9px 12px;border-radius:11px;color:#c3c9e4}
+.room:hover{background:var(--side2)}
+.room.on{background:var(--acc);color:#fff;font-weight:500}
+.room em{font-style:normal;font-size:12px;font-weight:700;background:#ff5d7a;color:#fff;border-radius:99px;padding:1px 8px}
+#newRoom{display:flex;gap:6px}
+#newRoom input{flex:1;min-width:0;background:var(--side2);border:1px solid transparent;border-radius:11px;padding:9px 12px;color:#fff}
+#newRoom input::placeholder{color:#8590b6}
+#newRoom button{background:var(--side2);border:0;border-radius:11px;width:42px;color:#fff;font-size:20px}
+#newRoom button:hover{background:var(--acc)}
+.card{display:flex;align-items:center;gap:10px;padding:12px 6px 0;border-top:1px solid var(--side2)}
+.card .nm{flex:1;min-width:0;line-height:1.2}
+.card .nm b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .nm button{background:none;border:0;padding:0;color:#8f98bd;font-size:13px;text-decoration:underline}
+.ib{background:var(--side2);border:0;border-radius:10px;width:36px;height:36px;color:#fff}
+.ib:hover{background:var(--acc)}
+.av{width:38px;height:38px;border-radius:50%;flex-shrink:0;color:#fff;font-weight:700;display:grid;place-items:center}
+main{flex:1;display:flex;flex-direction:column;min-width:0;height:100%}
+header{display:flex;align-items:center;gap:12px;padding:14px 22px;background:var(--panel);border-bottom:1px solid var(--line)}
+#menu{display:none;background:none;border:1px solid var(--line);border-radius:10px;padding:6px 12px}
+header div{flex:1;line-height:1.2}
+header h1{font-size:21px;margin:0}
+#sub{font-size:13px;color:var(--mute)}
+#log{flex:1;overflow-y:auto;padding:18px 22px;display:flex;flex-direction:column;gap:3px;scroll-behavior:smooth}
+.day{align-self:center;font-size:13px;color:var(--mute);background:var(--chip);padding:3px 14px;border-radius:99px;margin:14px 0 6px}
+.empty{margin:auto;text-align:center;color:var(--mute)}
+.empty span{display:block;font-size:44px;margin-bottom:6px}
+.msg{display:flex;gap:10px;max-width:min(700px,90%)}
+.msg.mine{align-self:flex-end;flex-direction:row-reverse}
+.msg.first{margin-top:12px}
+.msg:not(.first) .av{visibility:hidden;height:0}
+.col{min-width:0;display:flex;flex-direction:column;align-items:flex-start}
+.mine .col{align-items:flex-end}
+.who{font-size:13px;color:var(--mute);margin:0 4px 3px;display:flex;gap:8px;align-items:center}
+.who b{color:var(--ink);font-weight:500}
+.tag{background:var(--chip);border-radius:6px;padding:0 6px;font-size:12px}
+.row{display:flex;align-items:center;gap:6px;max-width:100%}
+.mine .row{flex-direction:row-reverse}
+.bub{background:var(--them);padding:9px 15px;border-radius:18px;border-top-left-radius:5px;overflow-wrap:anywhere;white-space:pre-wrap;box-shadow:0 1px 2px rgba(27,34,56,.08)}
+.mine .bub{background:var(--acc);color:#fff;border-radius:18px;border-top-right-radius:5px}
+.bub a{color:inherit;text-decoration:underline}
+.tools{display:flex;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:2px;box-shadow:var(--shadow);opacity:0;transition:opacity .15s}
+.msg:hover .tools,.tools:focus-within{opacity:1}
+.tb{background:none;border:0;border-radius:50%;width:28px;height:28px;font-size:14px}
+.tb:hover{background:var(--chip)}
+.chips{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap}
+.chip{background:var(--chip);border:1px solid transparent;border-radius:99px;padding:0 9px;font-size:13px}
+.chip.on{border-color:var(--acc)}
+.new .bub{animation:pop .22s ease-out}
+@keyframes pop{from{transform:scale(.92);opacity:0}}
+#typing{height:22px;padding:0 24px;font-size:13px;color:var(--mute)}
+.send{position:relative;display:flex;align-items:flex-end;gap:10px;padding:8px 22px calc(16px + env(safe-area-inset-bottom,0px));background:var(--bg)}
+.box{flex:1;display:flex;align-items:flex-end;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:4px 6px 4px 14px;box-shadow:var(--shadow)}
+.box:focus-within{border-color:var(--acc)}
+textarea{flex:1;border:0;background:none;resize:none;outline:0;padding:9px 0;max-height:140px;line-height:1.4}
+#emo{background:none;border:0;font-size:22px;width:40px;height:40px;border-radius:50%}
+#emo:hover{background:var(--chip)}
+#go{background:var(--acc);color:#fff;border:0;border-radius:18px;padding:0 22px;height:48px;font-weight:500;box-shadow:var(--shadow)}
+#go:disabled{opacity:.45;box-shadow:none;cursor:default}
+#pop{position:absolute;bottom:72px;right:104px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:8px;display:grid;grid-template-columns:repeat(4,1fr);gap:2px;z-index:3}
+#pop button{background:none;border:0;font-size:24px;width:44px;height:44px;border-radius:10px}
+#pop button:hover{background:var(--chip)}
+#join{position:fixed;inset:0;z-index:9;display:grid;place-items:center;padding:20px;background:linear-gradient(140deg,#161c33,#4f5bd5)}
+#join form{background:var(--panel);padding:34px;border-radius:24px;width:min(400px,100%);display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+#join h1{margin:0;font-size:30px;letter-spacing:-.4px}
+#join p{margin:0;color:var(--mute)}
+#join input[type=text]{border:1px solid var(--line);background:var(--bg);border-radius:13px;padding:13px 15px}
+.sw{display:flex;gap:8px;flex-wrap:wrap}
+.sw label{cursor:pointer}
+.sw input{position:absolute;opacity:0}
+.sw span{display:block;width:32px;height:32px;border-radius:50%;border:3px solid var(--panel);box-shadow:0 0 0 2px transparent}
+.sw input:checked+span{box-shadow:0 0 0 2px var(--ink)}
+.sw input:focus-visible+span{outline:2px solid var(--acc);outline-offset:3px}
+#join button{background:var(--acc);color:#fff;border:0;border-radius:13px;padding:13px;font-weight:500}
+@media(max-width:760px){
+aside{position:fixed;inset:0 auto 0 0;z-index:5;transform:translateX(-100%)}
+aside.open{transform:none}
+#menu{display:block}
+header,#log,.send{padding-left:14px;padding-right:14px}
+.tools{opacity:1}
+#pop{right:14px}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<aside id="side">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#4f5bd5"/><path d="M8 9h16a2 2 0 012 2v8a2 2 0 01-2 2H15l-5 4v-4H8a2 2 0 01-2-2v-8a2 2 0 012-2z" fill="#fff"/></svg>
+    EdChat
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;min-height:0">
+    <h2>Rooms</h2>
+    <div id="rooms"></div>
+  </div>
+  <form id="newRoom"><input id="roomName" placeholder="New room name" maxlength="24" aria-label="New room name"><button aria-label="Create room">+</button></form>
+  <div class="card">
+    <div class="av" id="meAv"></div>
+    <div class="nm"><b id="meName"></b><button id="rename">Change name</button></div>
+    <button class="ib" id="theme" aria-label="Switch light or dark theme">🌓</button>
+  </div>
+</aside>
+
+<main>
+  <header>
+    <button id="menu" aria-label="Open rooms">Rooms</button>
+    <div><h1 id="title"># general</h1><span id="sub"></span></div>
+  </header>
+  <div id="log" aria-live="polite"></div>
+  <div id="typing" aria-live="polite"></div>
+  <form class="send" id="send">
+    <div class="box">
+      <textarea id="text" rows="1" placeholder="Write a message" maxlength="2000" aria-label="Message"></textarea>
+      <button type="button" id="emo" aria-label="Add emoji">😊</button>
+    </div>
+    <button id="go" disabled>Send</button>
+    <div id="pop" hidden></div>
+  </form>
+</main>
+
+<div id="join">
+  <form id="joinForm">
+    <h1>Welcome to EdChat</h1>
+    <p>Choose a name and a color. Others in the room will see them.</p>
+    <input type="text" id="nameIn" placeholder="Your name" maxlength="20" required aria-label="Your name">
+    <div class="sw" id="sw" role="radiogroup" aria-label="Your color"></div>
+    <button>Start chatting</button>
+  </form>
+</div>
+
+<script>
+/* Messages are saved in this browser (localStorage) and shared live between tabs.
+   Everything that touches storage is in load() and save(), so a real server can replace them later. */
+(() => {
+const $ = s => document.querySelector(s);
+const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const KEY = "edchat-v2", TY = "edchat-typing";
+const COLORS = ["#4f5bd5", "#e0527a", "#2fa88a", "#e08a2f", "#8a5be0", "#2f8fd6", "#c2455f", "#5a9e3a"];
+const EMOJI = ["😀","😂","😍","🤔","👍","🙏","🎉","🔥","❤️","😮","😢","👀","✅","💡","📚","✏️"];
+const QUICK = ["👍", "❤️", "😂"];
+const st = {
+  get: (s, k) => { try { return s.getItem(k); } catch { return null; } },
+  set: (s, k, v) => { try { s.setItem(k, v); } catch {} }
+};
+const load = () => { try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } };
+const save = () => st.set(localStorage, KEY, JSON.stringify(S));
+
+function seed() {
+  return {
+    rooms: [{ id: "general", name: "general" }, { id: "homework", name: "homework" }, { id: "random", name: "random" }],
+    msgs: {
+      general: [{ id: uid(), user: "EdBot", bot: 1, t: Date.now(), react: {},
+        text: "Welcome to EdChat! Open this page in a second tab with a different name to chat with yourself. Type /help to see what I can do." }],
+      homework: [], random: []
+    }
+  };
+}
+let S = load() || seed();
+let me = null, room = st.get(sessionStorage, "edchat-room") || "general";
+const unread = {}, lens = {}, fresh = new Set();
+try { me = JSON.parse(st.get(sessionStorage, "edchat-me")); } catch {}
+const syncLens = () => S.rooms.forEach(r => lens[r.id] = (S.msgs[r.id] || []).length);
+syncLens();
+
+/* theme */
+const setTheme = t => { document.documentElement.dataset.theme = t; st.set(localStorage, "edchat-theme", t); };
+setTheme(st.get(localStorage, "edchat-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
+$("#theme").onclick = () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+
+/* helpers */
+const clock = t => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+function dayLabel(t) {
+  const d = new Date(t), n = new Date();
+  if (d.toDateString() === n.toDateString()) return "Today";
+  n.setDate(n.getDate() - 1);
+  if (d.toDateString() === n.toDateString()) return "Yesterday";
+  return d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
+}
+function linkify(p, text) {
+  text.split(/(https?:\/\/[^\s<]+)/g).forEach((s, i) => {
+    if (i % 2) { const a = el("a", "", s); a.href = s; a.target = "_blank"; a.rel = "noopener noreferrer"; p.append(a); }
+    else p.append(s);
+  });
+}
+const btn = (t, f, l) => { const b = el("button", "tb", t); b.type = "button"; b.onclick = f; b.setAttribute("aria-label", l); return b; };
+
+/* data actions */
+function post(rid, obj) {
+  const m = { id: uid(), t: Date.now(), react: {}, ...obj };
+  const list = S.msgs[rid] = S.msgs[rid] || [];
+  list.push(m); if (list.length > 500) list.shift();
+  fresh.add(m.id); lens[rid] = list.length; save();
+  return m;
+}
+function react(m, e) {
+  m.react = m.react || {};
+  const u = m.react[e] = m.react[e] || [], i = u.indexOf(me.name);
+  i < 0 ? u.push(me.name) : u.splice(i, 1);
+  save(); renderLog();
+}
+function del(m) { S.msgs[room] = S.msgs[room].filter(x => x.id !== m.id); lens[room] = S.msgs[room].length; save(); renderLog(); }
+
+/* EdBot */
+function say(text) {
+  const rid = room;
+  setTimeout(() => { post(rid, { user: "EdBot", bot: 1, text }); if (rid === room) renderLog(true); renderRooms(); }, 500);
+}
+function bot(text) {
+  const t = text.toLowerCase().trim();
+  if (t === "/help") say("Commands: /help shows this list, /clear empties this room. Mention @edbot to say hi. Hover a message to react, and your own messages can be deleted.");
+  else if (t === "/clear") { S.msgs[room] = []; lens[room] = 0; save(); renderLog(true); say("Room cleared."); }
+  else if (t.includes("@edbot")) say("Hi! I'm the small helper built into EdChat. Type /help to see what I can do.");
+}
+
+/* rendering */
+function renderRooms() {
+  const box = $("#rooms"); box.replaceChildren();
+  S.rooms.forEach(r => {
+    const b = el("button", "room" + (r.id === room ? " on" : ""));
+    b.append(el("span", "", "# " + r.name));
+    if (unread[r.id]) b.append(el("em", "", unread[r.id] > 9 ? "9+" : unread[r.id]));
+    b.onclick = () => open(r.id); box.append(b);
+  });
+}
+function msgEl(m, first) {
+  const mine = !m.bot && m.user === me.name;
+  const d = el("div", "msg" + (mine ? " mine" : "") + (first ? " first" : "") + (fresh.has(m.id) ? " new" : ""));
+  const av = el("div", "av", m.bot ? "✦" : m.user[0].toUpperCase());
+  av.style.background = m.bot ? "var(--ink)" : (m.color || COLORS[0]);
+  const col = el("div", "col");
+  if (first) {
+    const w = el("div", "who"); w.append(el("b", "", m.user));
+    if (m.bot) w.append(el("span", "tag", "bot"));
+    w.append(clock(m.t)); col.append(w);
+  }
+  const row = el("div", "row"), b = el("div", "bub"); linkify(b, m.text);
+  const tools = el("div", "tools");
+  QUICK.forEach(e => tools.append(btn(e, () => react(m, e), "React with " + e)));
+  if (mine) tools.append(btn("🗑", () => del(m), "Delete message"));
+  row.append(b, tools); col.append(row);
+  const rs = Object.entries(m.react || {}).filter(([, u]) => u.length);
+  if (rs.length) {
+    const c = el("div", "chips");
+    rs.forEach(([e, u]) => {
+      const x = el("button", "chip" + (u.includes(me.name) ? " on" : ""), e + " " + u.length);
+      x.type = "button"; x.title = u.join(", "); x.onclick = () => react(m, e); c.append(x);
+    });
+    col.append(c);
+  }
+  d.append(av, col); return d;
+}
+function renderLog(force) {
+  const log = $("#log");
+  const stick = force || log.scrollHeight - log.scrollTop - log.clientHeight < 100;
+  const ms = S.msgs[room] || [];
+  log.replaceChildren();
+  $("#sub").textContent = ms.length + (ms.length === 1 ? " message" : " messages") + " · saved in this browser";
+  if (!ms.length) {
+    const e = el("div", "empty"); e.append(el("span", "", "💬"), "No messages yet. Say hello in #" + room + ".");
+    log.append(e); return;
+  }
+  let prev = null;
+  ms.forEach(m => {
+    const newDay = !prev || new Date(prev.t).toDateString() !== new Date(m.t).toDateString();
+    if (newDay) log.append(el("div", "day", dayLabel(m.t)));
+    log.append(msgEl(m, newDay || prev.user !== m.user || m.t - prev.t > 300000));
+    prev = m;
+  });
+  fresh.clear();
+  if (stick) { log.style.scrollBehavior = "auto"; log.scrollTop = log.scrollHeight; log.style.scrollBehavior = ""; }
+}
+function open(id) {
+  room = id; unread[id] = 0; st.set(sessionStorage, "edchat-room", id);
+  const r = S.rooms.find(x => x.id === id) || S.rooms[0]; room = r.id;
+  $("#title").textContent = "# " + r.name; $("#typing").textContent = "";
+  renderRooms(); renderLog(true); $("#side").classList.remove("open");
+}
+
+/* composer */
+const ta = $("#text"), go = $("#go");
+const grow = () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 140) + "px"; go.disabled = !ta.value.trim(); };
+let lastTy = 0;
+ta.oninput = () => {
+  grow();
+  if (Date.now() - lastTy > 1500) { lastTy = Date.now(); st.set(localStorage, TY, JSON.stringify({ u: me.name, r: room, t: lastTy, n: Math.random() })); }
+};
+ta.onkeydown = e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("#send").requestSubmit(); } };
+$("#send").onsubmit = e => {
+  e.preventDefault();
+  const text = ta.value.trim(); if (!text) return;
+  ta.value = ""; grow(); $("#pop").hidden = true;
+  post(room, { user: me.name, color: me.color, text });
+  renderLog(true); bot(text); ta.focus();
+};
+const pop = $("#pop");
+EMOJI.forEach(e => { const b = el("button", "", e); b.type = "button"; b.onclick = () => { ta.setRangeText(e, ta.selectionStart, ta.selectionEnd, "end"); ta.focus(); grow(); }; pop.append(b); });
+$("#emo").onclick = ev => { ev.stopPropagation(); pop.hidden = !pop.hidden; };
+document.addEventListener("click", ev => { if (!pop.contains(ev.target)) pop.hidden = true; });
+document.addEventListener("keydown", ev => { if (ev.key === "Escape") { pop.hidden = true; $("#side").classList.remove("open"); } });
+
+/* rooms and menu */
+$("#newRoom").onsubmit = e => {
+  e.preventDefault();
+  const name = $("#roomName").value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24);
+  if (!name) return;
+  if (!S.rooms.some(r => r.id === name)) { S.rooms.push({ id: name, name }); S.msgs[name] = []; save(); }
+  $("#roomName").value = ""; open(name);
+};
+$("#menu").onclick = () => $("#side").classList.toggle("open");
+
+/* live sync between tabs */
+let tyTimer;
+addEventListener("storage", e => {
+  if (e.key === TY && e.newValue && me) {
+    try {
+      const d = JSON.parse(e.newValue);
+      if (d.u !== me.name && d.r === room) {
+        $("#typing").textContent = d.u + " is typing…";
+        clearTimeout(tyTimer); tyTimer = setTimeout(() => $("#typing").textContent = "", 3000);
+      }
+    } catch {}
+  }
+  if (e.key === KEY && me) {
+    const old = { ...lens };
+    S = load() || S;
+    S.rooms.forEach(r => {
+      const n = (S.msgs[r.id] || []).length;
+      if (r.id !== room && n > (old[r.id] || 0)) unread[r.id] = (unread[r.id] || 0) + n - (old[r.id] || 0);
+      lens[r.id] = n;
+    });
+    if (!S.rooms.some(r => r.id === room)) room = S.rooms[0].id;
+    $("#typing").textContent = ""; renderRooms(); renderLog();
+  }
+});
+
+/* join */
+const sw = $("#sw");
+COLORS.forEach((c, i) => {
+  const l = el("label"), r = el("input"), s = el("span");
+  r.type = "radio"; r.name = "color"; r.value = c; r.checked = i === 0; s.style.background = c;
+  l.append(r, s); sw.append(l);
+});
+function start() {
+  $("#join").hidden = true;
+  $("#meName").textContent = me.name;
+  const a = $("#meAv"); a.textContent = me.name[0].toUpperCase(); a.style.background = me.color;
+  open(room);
+}
+$("#joinForm").onsubmit = e => {
+  e.preventDefault();
+  const name = $("#nameIn").value.trim(), inp = $("#nameIn");
+  if (name.toLowerCase() === "edbot") { inp.setCustomValidity("EdBot is the helper's name. Pick another."); inp.reportValidity(); return; }
+  inp.setCustomValidity("");
+  me = { name, color: document.querySelector("input[name=color]:checked").value };
+  st.set(sessionStorage, "edchat-me", JSON.stringify(me)); st.set(localStorage, "edchat-last", name);
+  start();
+};
+$("#nameIn").oninput = e => e.target.setCustomValidity("");
+$("#rename").onclick = () => { $("#nameIn").value = me.name; $("#join").hidden = false; $("#nameIn").focus(); };
+
+if (me && me.name) start();
+else { $("#nameIn").value = st.get(localStorage, "edchat-last") || ""; $("#nameIn").focus(); }
+})();
+</script>
+</body>
+</html>
