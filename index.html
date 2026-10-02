@@ -151,9 +151,13 @@ header,#log,.send{padding-left:14px;padding-right:14px}
 </div>
 
 <script>
-/* Messages are saved in this browser (localStorage) and shared live between tabs.
-   Everything that touches storage is in load() and save(), so a real server can replace them later. */
+/* SETTINGS
+   Leave API empty and messages are saved in this browser (shared live between tabs).
+   To share messages between devices, deploy worker-turso.js and paste its address here, for example
+   "https://edchat-api.yourname.workers.dev" (no slash at the end). */
+const API = "libsql://edchat-johnnyo.aws-ap-northeast-1.turso.io";
 (() => {
+const remote = !!API;
 const $ = s => document.querySelector(s);
 const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -166,7 +170,7 @@ const st = {
   set: (s, k, v) => { try { s.setItem(k, v); } catch {} }
 };
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } };
-const save = () => st.set(localStorage, KEY, JSON.stringify(S));
+const save = () => { if (!remote) st.set(localStorage, KEY, JSON.stringify(S)); };
 
 function seed() {
   return {
@@ -178,7 +182,7 @@ function seed() {
     }
   };
 }
-let S = load() || seed();
+let S = remote ? { rooms: [{ id: "general", name: "general" }], msgs: {} } : (load() || seed());
 let me = null, room = st.get(sessionStorage, "edchat-room") || "general";
 const unread = {}, lens = {}, fresh = new Set();
 try { me = JSON.parse(st.get(sessionStorage, "edchat-me")); } catch {}
@@ -207,6 +211,46 @@ function linkify(p, text) {
 }
 const btn = (t, f, l) => { const b = el("button", "tb", t); b.type = "button"; b.onclick = f; b.setAttribute("aria-label", l); return b; };
 
+/* server mode */
+let online = true, busy = false, lastKey = "";
+async function api(path, body) {
+  const r = await fetch(API + path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : undefined);
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || "Request failed");
+  return d;
+}
+function toast(m) {
+  const t = $("#typing"); t.textContent = "⚠ " + m;
+  clearTimeout(tyTimer); tyTimer = setTimeout(() => t.textContent = "", 4000);
+}
+const setOnline = v => { if (v !== online) { online = v; renderLog(); } };
+async function pull() {
+  if (!remote || !me || busy || document.hidden) return;
+  busy = true; const rid = room;
+  try {
+    const rooms = await api("/api/rooms");
+    const msgs = await api("/api/messages?room=" + encodeURIComponent(rid));
+    S.rooms = rooms.map(r => ({ id: r.name, name: r.name }));
+    rooms.forEach(r => {
+      if (r.name !== room && lens[r.name] != null && r.n > lens[r.name]) unread[r.name] = (unread[r.name] || 0) + r.n - lens[r.name];
+      lens[r.name] = r.n;
+    });
+    if (rid === room) {
+      const key = JSON.stringify(msgs);
+      if (key !== lastKey) {
+        const had = new Set((S.msgs[rid] || []).map(m => m.id));
+        lastKey = key;
+        S.msgs[rid] = msgs.map(m => ({ ...m, bot: m.user === "EdBot" ? 1 : 0 }));
+        if (had.size) S.msgs[rid].forEach(m => { if (!had.has(m.id)) fresh.add(m.id); });
+        renderLog();
+      }
+    }
+    renderRooms(); setOnline(true);
+  } catch { setOnline(false); }
+  finally { busy = false; }
+}
+const refresh = () => { busy = false; return pull(); };
+
 /* data actions */
 function post(rid, obj) {
   const m = { id: uid(), t: Date.now(), react: {}, ...obj };
@@ -220,18 +264,23 @@ function react(m, e) {
   const u = m.react[e] = m.react[e] || [], i = u.indexOf(me.name);
   i < 0 ? u.push(me.name) : u.splice(i, 1);
   save(); renderLog();
+  if (remote && !String(m.id).startsWith("tmp")) api("/api/react", { id: m.id, emoji: e, user: me.name }).then(refresh).catch(err => toast(err.message));
 }
-function del(m) { S.msgs[room] = S.msgs[room].filter(x => x.id !== m.id); lens[room] = S.msgs[room].length; save(); renderLog(); }
+function del(m) {
+  S.msgs[room] = S.msgs[room].filter(x => x.id !== m.id); lens[room] = S.msgs[room].length; save(); renderLog();
+  if (remote && !String(m.id).startsWith("tmp")) api("/api/delete", { id: m.id, user: me.name }).then(refresh).catch(err => toast(err.message));
+}
 
 /* EdBot */
 function say(text) {
   const rid = room;
+  if (remote) { setTimeout(() => api("/api/messages", { room: rid, user: "EdBot", color: "#161c33", text }).then(refresh).catch(() => {}), 500); return; }
   setTimeout(() => { post(rid, { user: "EdBot", bot: 1, text }); if (rid === room) renderLog(true); renderRooms(); }, 500);
 }
 function bot(text) {
   const t = text.toLowerCase().trim();
   if (t === "/help") say("Commands: /help shows this list, /clear empties this room. Mention @edbot to say hi. Hover a message to react, and your own messages can be deleted.");
-  else if (t === "/clear") { S.msgs[room] = []; lens[room] = 0; save(); renderLog(true); say("Room cleared."); }
+  else if (t === "/clear") { if (remote) return say("/clear is turned off when messages are shared."); S.msgs[room] = []; lens[room] = 0; save(); renderLog(true); say("Room cleared."); }
   else if (t.includes("@edbot")) say("Hi! I'm the small helper built into EdChat. Type /help to see what I can do.");
 }
 
@@ -277,7 +326,7 @@ function renderLog(force) {
   const stick = force || log.scrollHeight - log.scrollTop - log.clientHeight < 100;
   const ms = S.msgs[room] || [];
   log.replaceChildren();
-  $("#sub").textContent = ms.length + (ms.length === 1 ? " message" : " messages") + " · saved in this browser";
+  $("#sub").textContent = ms.length + (ms.length === 1 ? " message" : " messages") + (remote ? (online ? " · live" : " · offline, retrying") : " · saved in this browser");
   if (!ms.length) {
     const e = el("div", "empty"); e.append(el("span", "", "💬"), "No messages yet. Say hello in #" + room + ".");
     log.append(e); return;
@@ -296,7 +345,8 @@ function open(id) {
   room = id; unread[id] = 0; st.set(sessionStorage, "edchat-room", id);
   const r = S.rooms.find(x => x.id === id) || S.rooms[0]; room = r.id;
   $("#title").textContent = "# " + r.name; $("#typing").textContent = "";
-  renderRooms(); renderLog(true); $("#side").classList.remove("open");
+  lastKey = ""; renderRooms(); renderLog(true); $("#side").classList.remove("open");
+  if (remote) refresh();
 }
 
 /* composer */
@@ -305,15 +355,21 @@ const grow = () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scr
 let lastTy = 0;
 ta.oninput = () => {
   grow();
-  if (Date.now() - lastTy > 1500) { lastTy = Date.now(); st.set(localStorage, TY, JSON.stringify({ u: me.name, r: room, t: lastTy, n: Math.random() })); }
+  if (!remote && Date.now() - lastTy > 1500) { lastTy = Date.now(); st.set(localStorage, TY, JSON.stringify({ u: me.name, r: room, t: lastTy, n: Math.random() })); }
 };
 ta.onkeydown = e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("#send").requestSubmit(); } };
 $("#send").onsubmit = e => {
   e.preventDefault();
   const text = ta.value.trim(); if (!text) return;
   ta.value = ""; grow(); $("#pop").hidden = true;
-  post(room, { user: me.name, color: me.color, text });
-  renderLog(true); bot(text); ta.focus();
+  if (remote) {
+    const tmp = { id: "tmp" + uid(), user: me.name, color: me.color, text, t: Date.now(), react: {} };
+    (S.msgs[room] = S.msgs[room] || []).push(tmp); renderLog(true); busy = true;
+    api("/api/messages", { room, user: me.name, color: me.color, text })
+      .then(() => { bot(text); return refresh(); })
+      .catch(err => { S.msgs[room] = S.msgs[room].filter(x => x !== tmp); renderLog(); toast(err.message); ta.value = text; grow(); busy = false; });
+  } else { post(room, { user: me.name, color: me.color, text }); renderLog(true); bot(text); }
+  ta.focus();
 };
 const pop = $("#pop");
 EMOJI.forEach(e => { const b = el("button", "", e); b.type = "button"; b.onclick = () => { ta.setRangeText(e, ta.selectionStart, ta.selectionEnd, "end"); ta.focus(); grow(); }; pop.append(b); });
@@ -326,8 +382,10 @@ $("#newRoom").onsubmit = e => {
   e.preventDefault();
   const name = $("#roomName").value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24);
   if (!name) return;
-  if (!S.rooms.some(r => r.id === name)) { S.rooms.push({ id: name, name }); S.msgs[name] = []; save(); }
-  $("#roomName").value = ""; open(name);
+  $("#roomName").value = "";
+  if (S.rooms.some(r => r.id === name)) return open(name);
+  if (remote) { api("/api/rooms", { name }).then(() => { S.rooms.push({ id: name, name }); S.msgs[name] = []; open(name); }).catch(err => toast(err.message)); return; }
+  S.rooms.push({ id: name, name }); S.msgs[name] = []; save(); open(name);
 };
 $("#menu").onclick = () => $("#side").classList.toggle("open");
 
@@ -381,6 +439,7 @@ $("#joinForm").onsubmit = e => {
 $("#nameIn").oninput = e => e.target.setCustomValidity("");
 $("#rename").onclick = () => { $("#nameIn").value = me.name; $("#join").hidden = false; $("#nameIn").focus(); };
 
+if (remote) { setInterval(pull, 2500); addEventListener("visibilitychange", pull); }
 if (me && me.name) start();
 else { $("#nameIn").value = st.get(localStorage, "edchat-last") || ""; $("#nameIn").focus(); }
 })();
